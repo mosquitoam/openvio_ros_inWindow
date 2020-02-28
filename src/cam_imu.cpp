@@ -58,7 +58,7 @@ Time imu_get_data(float *buf)
     {
         buf[i] = imu_buffer[i];
     }
-        printf("%0.3f\t%0.3f\t%0.3f\t%0.3f\t%0.3f\t%0.3f\t\r\n",
+        printf("IMU:%0.3f\t%0.3f\t%0.3f\t%0.3f\t%0.3f\t%0.3f\t\r\n",
                     imu_buffer[0],imu_buffer[1],imu_buffer[2],
                     imu_buffer[3],imu_buffer[4],imu_buffer[5]);
 
@@ -113,6 +113,9 @@ void *imu_catch_thread(void *)
     int imuRecvLen;
     printf("imu_catch_thread start\r\n");
 
+    float acc_cal = 9.8f*8.0f/65535*2;
+    float buffer_tmp[3];
+
     while (1)
     {
 
@@ -127,46 +130,58 @@ void *imu_catch_thread(void *)
         // ros::Time tttime((double)img_time_cnt / 1000);
         // img_time = tttime;
 
-        int16_t gx = (((0xff & (char)imu_buf[4 * 2]) << 8) | 0xff & (char)imu_buf[4 * 2 + 1]);
-        int16_t gy = (((0xff & (char)imu_buf[5 * 2]) << 8) | 0xff & (char)imu_buf[5 * 2 + 1]);
-        int16_t gz = (((0xff & (char)imu_buf[6 * 2]) << 8) | 0xff & (char)imu_buf[6 * 2 + 1]);
+        int16_t gx = (((0xff & (char)imu_buf[3 * 2]) << 8) | 0xff & (char)imu_buf[3 * 2 + 1]);
+        int16_t gy = (((0xff & (char)imu_buf[4 * 2]) << 8) | 0xff & (char)imu_buf[4 * 2 + 1]);
+        int16_t gz = (((0xff & (char)imu_buf[5 * 2]) << 8) | 0xff & (char)imu_buf[5 * 2 + 1]);
 
-        imu_buffer[3] = gx * (4000.0 / 65536.0) * (M_PI / 180.0) - GX_OFFSET;
-        imu_buffer[4] = gy * (4000.0 / 65536.0) * (M_PI / 180.0) - GY_OFFSET;
-        imu_buffer[5] = gz * (4000.0 / 65536.0) * (M_PI / 180.0) - GZ_OFFSET;
+        imu_buffer[3] = gx * (500.0 / 65536.0) * (M_PI / 180.0) - GX_OFFSET;
+        imu_buffer[4] = gy * (500.0 / 65536.0) * (M_PI / 180.0) - GY_OFFSET;
+        imu_buffer[5] = gz * (500.0 / 65536.0) * (M_PI / 180.0) - GZ_OFFSET;
 
         // get acelerometer values
-        int16_t ax = (((0xff & (char)imu_buf[0 * 2]) << 8) | 0xff & (char)imu_buf[0 * 2]);
-        int16_t ay = (((0xff & (char)imu_buf[1 * 2]) << 8) | 0xff & (char)imu_buf[1 * 2]);
-        int16_t az = (((0xff & (char)imu_buf[2 * 2]) << 8) | 0xff & (char)imu_buf[2 * 2]);
+        int16_t ax = (((0xff & (char)imu_buf[0 * 2]) << 8) | 0xff & (char)imu_buf[0 * 2 + 1]);
+        int16_t ay = (((0xff & (char)imu_buf[1 * 2]) << 8) | 0xff & (char)imu_buf[1 * 2 + 1]);
+        int16_t az = (((0xff & (char)imu_buf[2 * 2]) << 8) | 0xff & (char)imu_buf[2 * 2 + 1]);
+
+        buffer_tmp[0] = ax*acc_cal;
+        buffer_tmp[1] = ay*acc_cal;
+        buffer_tmp[2] = az*acc_cal;
+
+        imu_buffer[0] =  1.0019*buffer_tmp[0]-0.0134*buffer_tmp[1]+0.0212*buffer_tmp[2];
+        imu_buffer[1] =  0.0569*buffer_tmp[0]+1.0190*buffer_tmp[1]+0.0180*buffer_tmp[2];
+        imu_buffer[2] = -0.0263*buffer_tmp[0]-0.0086*buffer_tmp[1]+0.9741*buffer_tmp[2];
 
         // calculate accelerations in m/s²
-        imu_buffer[0] = ax * (16.0 / 65536.0) * 9.8015f;
-        imu_buffer[1] = ay * (16.0 / 65536.0) * 9.8015f;
-        imu_buffer[2] = az * (16.0 / 65536.0) * 9.8015f;
+        // imu_buffer[0] = ax * (16.0 / 65536.0) * 9.8015f;
+        // imu_buffer[1] = ay * (16.0 / 65536.0) * 9.8015f;
+        // imu_buffer[2] = az * (16.0 / 65536.0) * 9.8015f;
 
-        buf_data[0][lvbo_cnt]=imu_buffer[0];
-        buf_data[1][lvbo_cnt]=imu_buffer[1];
-        buf_data[2][lvbo_cnt]=imu_buffer[2];
-        lvbo_data[0]=0.0;
-        lvbo_data[1]=0.0;
-        lvbo_data[2]=0.0;
-        for(int ii=0;ii<10;ii++)
-        {
-            lvbo_data[0]+=buf_data[0][ii];
-            lvbo_data[1]+=buf_data[1][ii];
-            lvbo_data[2]+=buf_data[2][ii];
-        }
-        imu_buffer[0]=(lvbo_data[0]/10);
-        imu_buffer[1]=(lvbo_data[1]/10);
-        imu_buffer[2]=(lvbo_data[2]/10);
-        lvbo_cnt++;
-        if(lvbo_cnt==10)
-            lvbo_cnt=0;
+        // buf_data[0][lvbo_cnt]=imu_buffer[0];
+        // buf_data[1][lvbo_cnt]=imu_buffer[1];
+        // buf_data[2][lvbo_cnt]=imu_buffer[2];
 
-        imu_buffer[0] = 0.9953f * imu_buffer[0] - 0.3479f;
-        imu_buffer[1] = 0.9952f * imu_buffer[1] + 0.1601f;
-        imu_buffer[2] = 0.9868f * imu_buffer[2] - 0.0253f;
+        // lvbo_data[0]=0.0;
+        // lvbo_data[1]=0.0;
+        // lvbo_data[2]=0.0;
+
+        // for(int ii=0;ii<10;ii++)
+        // {
+        //     lvbo_data[0]+=buf_data[0][ii];
+        //     lvbo_data[1]+=buf_data[1][ii];
+        //     lvbo_data[2]+=buf_data[2][ii];
+        // }
+
+        // imu_buffer[0]=(lvbo_data[0]/10);
+        // imu_buffer[1]=(lvbo_data[1]/10);
+        // imu_buffer[2]=(lvbo_data[2]/10);
+        // lvbo_cnt++;
+        // if(lvbo_cnt==10)
+        //     lvbo_cnt=0;
+
+        // imu_buffer[0] = 0.9953f * imu_buffer[0] - 0.3479f;
+        // imu_buffer[1] = 0.9952f * imu_buffer[1] + 0.1601f;
+        // imu_buffer[2] = 0.9868f * imu_buffer[2] - 0.0253f;
+
         imu_flag=1;
 
         imu_cnt++;
