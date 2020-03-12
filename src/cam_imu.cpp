@@ -16,9 +16,13 @@ using namespace std;
 
 #define USB_TIMEOUT     1000 //传输数据的时间延迟
 
-#define GX_OFFSET       0
-#define GY_OFFSET       0
-#define GZ_OFFSET       0
+// #define GX_OFFSET       0
+// #define GY_OFFSET       0
+// #define GZ_OFFSET       0
+
+#define GX_OFFSET       0.045
+#define GY_OFFSET       0.001
+#define GZ_OFFSET       -0.009
 
 #define IMU_BUF_SIZE    14
 #define IMG_BUF_SIZE    752 * 480
@@ -108,6 +112,14 @@ float buf_data[3][10];
 unsigned char lvbo_cnt=0;
 float lvbo_data[3],lvbo_gyro_data[3];
 
+#define OX -0.0731
+#define OY -0.2291
+#define OZ 0.1741
+#define RX 1.0013
+#define RY 1.0018
+#define RZ 1.0144
+
+
 void *imu_catch_thread(void *)
 {
     int imuRecvLen;
@@ -147,9 +159,13 @@ void *imu_catch_thread(void *)
         buffer_tmp[1] = ay*acc_cal;
         buffer_tmp[2] = az*acc_cal;
 
-        imu_buffer[0] =  1.0019*buffer_tmp[0]-0.0134*buffer_tmp[1]+0.0212*buffer_tmp[2];
-        imu_buffer[1] =  0.0569*buffer_tmp[0]+1.0190*buffer_tmp[1]+0.0180*buffer_tmp[2];
-        imu_buffer[2] = -0.0263*buffer_tmp[0]-0.0086*buffer_tmp[1]+0.9741*buffer_tmp[2];
+        imu_buffer[0] = (buffer_tmp[0]-OX)/RX;
+        imu_buffer[1] = (buffer_tmp[1]-OY)/RY;
+        imu_buffer[2] = (buffer_tmp[2]-OZ)/RZ;
+
+        // imu_buffer[0] =  1.0019*buffer_tmp[0]-0.0134*buffer_tmp[1]+0.0212*buffer_tmp[2];
+        // imu_buffer[1] =  0.0569*buffer_tmp[0]+1.0190*buffer_tmp[1]+0.0180*buffer_tmp[2];
+        // imu_buffer[2] = -0.0263*buffer_tmp[0]-0.0086*buffer_tmp[1]+0.9741*buffer_tmp[2];
 
         // calculate accelerations in m/s²
         // imu_buffer[0] = ax * (16.0 / 65536.0) * 9.8015f;
