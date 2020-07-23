@@ -85,10 +85,10 @@ int main(int argc, char **argv)
     pthread_create(&new_thread, NULL, imu_thread, NULL);
 
 
-    while (node.ok())
+    while(node.ok())
     {
         imu_start_flag = 1;
-        if(img_flag == 1)
+        if(img_flag != 0)
         {
             header.seq = 0;
             header.frame_id = "img";
@@ -96,7 +96,8 @@ int main(int argc, char **argv)
 
             msg = cv_bridge::CvImage(header, "mono8", image).toImageMsg();
                 pub.publish(msg);
-            img_flag=0;
+
+            img_flag = 0;
         }
 
         ros::spinOnce();

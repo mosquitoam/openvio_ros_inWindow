@@ -55,9 +55,47 @@ unsigned char img_time_buf[IMG_FRAME_SIZE_MAX][6];
 
 Time img_get(Mat img_data)
 {
-    img_cnt++;
-    memcpy(img_data.data, img[0], IMG_BUF_SIZE);
+    static uint32_t timer;
+    static uint32_t t1,t1_old;
+    static uint16_t t2,t2_old;
+    static bool is_first = true;
+    static float d_time = 0;
 
+    t1 = (uint32_t)(img_time_buf[img_flag][0]<<24);
+    t1 |= (uint32_t)(img_time_buf[img_flag][1]<<16);
+    t1 |= (uint32_t)(img_time_buf[img_flag][2]<<8);
+    t1 |= (uint32_t)(img_time_buf[img_flag][3]<<0);
+
+    t2 = (uint16_t)(img_time_buf[img_flag][4]<<8);
+    t2 |= (uint16_t)(img_time_buf[img_flag][5]<<0);
+
+    if(is_first == true)
+    {
+        is_first = false;
+        t1_old = t1;
+        t2_old = t2;
+        return img_time;
+    }
+
+    if(t2 > t2_old)
+    {
+        timer = t2-t2_old;
+    }else{
+        timer = (uint32_t)t2 + 50000 - t2_old;
+    }
+
+    t1_old = t1;
+    t2_old = t2;
+
+    d_time = timer*0.00001;
+    //printf("cam %d\t%d\t%d\t%f\r\n",t1,t2,timer,d_time);
+
+    img_cnt++;
+    memcpy(img_data.data, img[img_flag], IMG_BUF_SIZE);
+
+    img_time = ros::Time(t1/2, (t1%2*50000+t2)*10000);//ros::Time::now();
+
+    printf("cam %f\t%d\r\n",img_time.toSec());
     return img_time;
 }
 
@@ -116,7 +154,6 @@ void *cam_catch_thread(void *)
                 findRet = find_str("CAMERA",img[img_index]+img_recv_index, camRecvLen);
                 if (findRet > 0)
                 {
-                    recv_head_status = 1;
                     memcpy(img_time_buf[img_index], img[img_index]+img_recv_index + 6, 6);
                     img_recv_index = 0;
                     recv_head_status = 1;
@@ -139,11 +176,11 @@ void *cam_catch_thread(void *)
                 
                 if (img_recv_index >= 752*480)
                 {
-                    printf("cat success:%d\r\n",img_index);
+                    //printf("cat success:%d\r\n",img_index);
                     img_recv_index = 0;
                     recv_head_status = 0;
-                    img_time = ros::Time::now();
-
+                    //img_time = ros::Time::now();
+                    img_flag = img_index;
                     img_index++;
                     if (img_index >= IMG_FRAME_SIZE_MAX)
                     {
