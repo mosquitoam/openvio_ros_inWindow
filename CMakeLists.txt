@@ -203,7 +203,7 @@ include_directories(
 find_package(OpenCV)
 include_directories(include ${OpenCV_INCLUDE_DIRS})
 
-add_executable(openvio_ros src/openvio_ros.cpp src/cam_imu.cpp include/cam_imu.h include/libusb.h)
+add_executable(openvio_ros src/openvio_ros.cpp src/cam_imu.cpp include/cam_imu.h src/find_str.cpp include/find_str.h include/libusb.h)
 target_link_libraries(openvio_ros ${catkin_LIBRARIES} libopencv_core.so libopencv_highgui.so libusb-1.0.so)
 
 include_directories(/ros/src/my_image_transport/include)  

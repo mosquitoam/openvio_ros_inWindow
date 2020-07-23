@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include "cam_imu.h"
+#include "find_str.h"
 
 using namespace std;
 // using namespace cv;
@@ -24,7 +25,7 @@ using namespace std;
 #define GY_OFFSET       0.001
 #define GZ_OFFSET       -0.009
 
-#define IMU_BUF_SIZE    14
+#define IMU_BUF_SIZE    24
 #define IMG_BUF_SIZE    752 * 480
 #define M_PI            3.14159265358979323846
 
@@ -47,10 +48,15 @@ Mat img_cam(Size(752, 480), CV_8UC1);
 ros::Time imu_time;
 ros::Time img_time;
 
+#define IMG_FRAME_SIZE_MAX 30
+
+unsigned char img[IMG_FRAME_SIZE_MAX][IMG_BUF_SIZE];
+unsigned char img_time_buf[IMG_FRAME_SIZE_MAX][6];
+
 Time img_get(Mat img_data)
 {
     img_cnt++;
-    memcpy(img_data.data, img_buf, IMG_BUF_SIZE);
+    memcpy(img_data.data, img[0], IMG_BUF_SIZE);
 
     return img_time;
 }
@@ -71,15 +77,19 @@ Time imu_get_data(float *buf)
 
 void *cam_catch_thread(void *)
 {
-    int ret = 0;
-    static int img_recv_index = 0;
+    int ret = 0,findRet=0;
+    static int img_recv_index = 0,img_index = 0;
     int camRecvLen;
+    int recv_head_status = 0;
+    uint8_t head_tmp[1024];
+    
 
     printf("cam_catch_thread start\r\n");
 
     while (1)
     {
-        ret = libusb_bulk_transfer(dev_handle, CAM_EPADDR, (unsigned char *)(img_buf + img_recv_index), IMG_BUF_SIZE, &camRecvLen, USB_TIMEOUT);
+        ret = libusb_bulk_transfer(dev_handle, CAM_EPADDR, (unsigned char *)(img[img_index] + img_recv_index), 512 * 1024, &camRecvLen, 1000);
+
         if (ret < 0)
         {
             if (ret != -7)
@@ -90,15 +100,58 @@ void *cam_catch_thread(void *)
         }
         else
         {
-            img_recv_index += camRecvLen;
+            
 
-            if (img_recv_index >= IMG_BUF_SIZE)
+            if ((recv_head_status == 0) && (camRecvLen == 12))
             {
-                img_time = ros::Time::now();
-                img_cnt++;
-                img_flag = 1;
-                img_recv_index = 0;
+                findRet = find_str("CAMERA",img[img_index]+img_recv_index, camRecvLen);
+                if (findRet > 0)
+                {
+                    recv_head_status = 1;
+                    memcpy(img_time_buf[img_index], img[img_index]+img_recv_index + 6, 6);
+                }
             }
+            else if (camRecvLen == 12)
+            {
+                findRet = find_str("CAMERA",img[img_index]+img_recv_index, camRecvLen);
+                if (findRet > 0)
+                {
+                    recv_head_status = 1;
+                    memcpy(img_time_buf[img_index], img[img_index]+img_recv_index + 6, 6);
+                    img_recv_index = 0;
+                    recv_head_status = 1;
+                }
+                else
+                {
+                    img_recv_index = 0;
+                    recv_head_status = 0;
+                }
+            }
+            else if (recv_head_status == 0)
+            {
+                //DBG("cam recv error len %d", camRecvLen);
+                //emit disconnectSignals();
+                //break;
+            }
+            else
+            {
+                img_recv_index += camRecvLen;
+                
+                if (img_recv_index >= 752*480)
+                {
+                    printf("cat success:%d\r\n",img_index);
+                    img_recv_index = 0;
+                    recv_head_status = 0;
+                    img_time = ros::Time::now();
+
+                    img_index++;
+                    if (img_index >= IMG_FRAME_SIZE_MAX)
+                    {
+                        img_index = 0;
+                    }
+                }
+            }
+
         }
     }
 
@@ -127,6 +180,7 @@ void *imu_catch_thread(void *)
 
     float acc_cal = 9.8f*8.0f/65535*2;
     float buffer_tmp[3];
+    uint8_t IMU_DATA_INDEX = 10;
 
     while (1)
     {
@@ -142,26 +196,30 @@ void *imu_catch_thread(void *)
         // ros::Time tttime((double)img_time_cnt / 1000);
         // img_time = tttime;
 
-        int16_t gx = (((0xff & (char)imu_buf[3 * 2]) << 8) | 0xff & (char)imu_buf[3 * 2 + 1]);
-        int16_t gy = (((0xff & (char)imu_buf[4 * 2]) << 8) | 0xff & (char)imu_buf[4 * 2 + 1]);
-        int16_t gz = (((0xff & (char)imu_buf[5 * 2]) << 8) | 0xff & (char)imu_buf[5 * 2 + 1]);
+        int16_t gx = (((0xff & (char)imu_buf[IMU_DATA_INDEX + 3 * 2]) << 8) | 0xff & (char)imu_buf[IMU_DATA_INDEX + 3 * 2 + 1]);
+        int16_t gy = (((0xff & (char)imu_buf[IMU_DATA_INDEX + 4 * 2]) << 8) | 0xff & (char)imu_buf[IMU_DATA_INDEX + 4 * 2 + 1]);
+        int16_t gz = (((0xff & (char)imu_buf[IMU_DATA_INDEX + 5 * 2]) << 8) | 0xff & (char)imu_buf[IMU_DATA_INDEX + 5 * 2 + 1]);
 
         imu_buffer[3] = gx * (500.0 / 65536.0) * (M_PI / 180.0) - GX_OFFSET;
         imu_buffer[4] = gy * (500.0 / 65536.0) * (M_PI / 180.0) - GY_OFFSET;
         imu_buffer[5] = gz * (500.0 / 65536.0) * (M_PI / 180.0) - GZ_OFFSET;
 
         // get acelerometer values
-        int16_t ax = (((0xff & (char)imu_buf[0 * 2]) << 8) | 0xff & (char)imu_buf[0 * 2 + 1]);
-        int16_t ay = (((0xff & (char)imu_buf[1 * 2]) << 8) | 0xff & (char)imu_buf[1 * 2 + 1]);
-        int16_t az = (((0xff & (char)imu_buf[2 * 2]) << 8) | 0xff & (char)imu_buf[2 * 2 + 1]);
+        int16_t ax = (((0xff & (char)imu_buf[IMU_DATA_INDEX + 0 * 2]) << 8) | 0xff & (char)imu_buf[IMU_DATA_INDEX + 0 * 2 + 1]);
+        int16_t ay = (((0xff & (char)imu_buf[IMU_DATA_INDEX + 1 * 2]) << 8) | 0xff & (char)imu_buf[IMU_DATA_INDEX + 1 * 2 + 1]);
+        int16_t az = (((0xff & (char)imu_buf[IMU_DATA_INDEX + 2 * 2]) << 8) | 0xff & (char)imu_buf[IMU_DATA_INDEX + 2 * 2 + 1]);
 
         buffer_tmp[0] = ax*acc_cal;
         buffer_tmp[1] = ay*acc_cal;
         buffer_tmp[2] = az*acc_cal;
 
-        imu_buffer[0] = (buffer_tmp[0]-OX)/RX;
-        imu_buffer[1] = (buffer_tmp[1]-OY)/RY;
-        imu_buffer[2] = (buffer_tmp[2]-OZ)/RZ;
+        // imu_buffer[0] = (buffer_tmp[0]-OX)/RX;
+        // imu_buffer[1] = (buffer_tmp[1]-OY)/RY;
+        // imu_buffer[2] = (buffer_tmp[2]-OZ)/RZ;
+
+        imu_buffer[0] = buffer_tmp[0];
+        imu_buffer[1] = buffer_tmp[1];
+        imu_buffer[2] = buffer_tmp[2];
 
         // imu_buffer[0] =  1.0019*buffer_tmp[0]-0.0134*buffer_tmp[1]+0.0212*buffer_tmp[2];
         // imu_buffer[1] =  0.0569*buffer_tmp[0]+1.0190*buffer_tmp[1]+0.0180*buffer_tmp[2];
@@ -255,7 +313,7 @@ int openvio_init(unsigned char flag)
         return 1;
     }
 
-    r = libusb_control_transfer(dev_handle, LIBUSB_REQUEST_TYPE_VENDOR + +LIBUSB_ENDPOINT_IN, REQUEST_CAMERA_START, 0, 0, ctrl_buffer, 1, 1000);
+    r = libusb_control_transfer(dev_handle, LIBUSB_REQUEST_TYPE_VENDOR + LIBUSB_ENDPOINT_IN, REQUEST_CAMERA_START, 0, 0, ctrl_buffer, 128, 1000);
     if (r < 0)
     {
         printf("cam libusb_control_transfer fail\r\n");
@@ -266,24 +324,24 @@ int openvio_init(unsigned char flag)
         printf("cam libusb_control_transfer success %c\r\n", ctrl_buffer[0]);
     }
 
-    libusb_control_transfer(dev_handle, LIBUSB_REQUEST_TYPE_VENDOR + +LIBUSB_ENDPOINT_IN, REQUEST_IMU_START, 0, 0, ctrl_buffer, 1, 1000);
-    if (r < 0)
-    {
-        printf("imu libusb_control_transfer fail\r\n");
-        return 1;
-    }
-    else
-    {
-        printf("imu libusb_control_transfer success %c\r\n", ctrl_buffer[0]);
-    }
+    // libusb_control_transfer(dev_handle, LIBUSB_REQUEST_TYPE_VENDOR + LIBUSB_ENDPOINT_IN, REQUEST_IMU_START, 0, 0, ctrl_buffer, 128, 1000);
+    // if (r < 0)
+    // {
+    //     printf("imu libusb_control_transfer fail\r\n");
+    //     return 1;
+    // }
+    // else
+    // {
+    //     printf("imu libusb_control_transfer success %c\r\n", ctrl_buffer[0]);
+    // }
 
     pthread_t cam_thread;
     if (pthread_create(&cam_thread, NULL, cam_catch_thread, NULL))
         printf("Failed to create thread cam_catch_thread\r\n");
 
-    pthread_t imu_thread;
-    if (pthread_create(&imu_thread, NULL, imu_catch_thread, NULL))
-        printf("Failed to create thread imu_catch_thread\r\n");
+    // pthread_t imu_thread;
+    // if (pthread_create(&imu_thread, NULL, imu_catch_thread, NULL))
+    //     printf("Failed to create thread imu_catch_thread\r\n");
 
     //pthread_t img_s_thread;
     //if(pthread_create(&img_s_thread, NULL, img_show_thread, NULL))
