@@ -21,7 +21,7 @@ void* imu_thread(void *)
 {
     while(imu_start_flag)
     {
-        if(imu_flag==1)
+        if(imu_flag != 0)
         {
             header.seq=0;
             imu.header.stamp = imu_get_data(imu_data);//ros::Time::now();
