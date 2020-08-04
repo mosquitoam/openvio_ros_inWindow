@@ -1,0 +1,6 @@
+accelerometer_noise_density: 0.2
+accelerometer_random_walk: 0.002
+gyroscope_noise_density: 0.02
+gyroscope_random_walk: 2.0e-4 
+rostopic: /imu0                   #the IMU ROS topic
+update_rate: 200.0                #Hz (for discretization of the values above)
