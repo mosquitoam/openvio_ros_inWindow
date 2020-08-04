@@ -2,6 +2,7 @@
 
 OPENVIO ROS module  
 
+![VINS-MONO](https://images.gitee.com/uploads/images/2020/0804/130211_b8e933c0_683968.png "Screenshot from 2020-08-04 12-59-07.png")
 #### HOW TO RUN
 
 ```
