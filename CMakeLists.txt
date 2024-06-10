@@ -203,7 +203,35 @@ include_directories(
 find_package(OpenCV)
 include_directories(include ${OpenCV_INCLUDE_DIRS})
 
-add_executable(openvio_ros src/openvio_ros.cpp src/cam_imu.cpp include/cam_imu.h src/find_str.cpp include/find_str.h include/libusb.h)
-target_link_libraries(openvio_ros ${catkin_LIBRARIES} libopencv_core.so libopencv_highgui.so libusb-1.0.so)
+message("Opencv XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX  ${OpenCV_INCLUDE_DIRS} ******************************")
+
+# find_library(PTHREAD_LIB_STATIC_LIBRARY
+#   NAMES pthread_static_lib
+#   PATHS "E:/Projects/OpenVIO/pthread-win32-master/windows/VS2019/bin/Release-Unicode-64bit-x64"
+#   NO_DEFAULT_PATH
+# )
+ 
+# find_library(PTHREAD_LIB_DYNAMIC_LIBRARY
+#   NAMES pthread
+#   PATHS "E:/Projects/OpenVIO/pthread-win32-master/windows/VS2019/bin/Release-Unicode-64bit-x64"
+#   NO_DEFAULT_PATH
+# )
+
+include_directories("E:/Projects/OpenVIO/pthread-win32-master/")
+#include_directories("E:/Projects/OpenVIO/libusb-1.0.22/include/libusb-1.0")
+#include_directories("E:/Projects/OpenVIO/libusb-1.0.27/include")
+include_directories("E:/Projects/OpenVIO/libusb-1.0.27/libusb")#E:\Projects\OpenVIO\libusb-1.0.21\libusb
+
+link_directories("C:/opt/ros/melodic/x64/lib")
+link_directories("E:/Projects/OpenVIO/libusb-1.0.27/VS2019/MS64/dll")
+
+#link_directories("E:/Projects/OpenVIO/libusb-1.0.23/MS64/static")
+#link_directories("E:/Projects/OpenVIO/libusb-1.0.22/x64/Release/dll")
+link_directories("E:/Projects/OpenVIO/libusb-1.0.21/x64/Release/dll")
+
+link_directories("E:/Projects/OpenVIO/pthread-win32-master/windows/VS2019/bin/Release-Unicode-64bit-x64")
+
+add_executable(openvio_ros src/openvio_ros.cpp src/cam_imu.cpp include/cam_imu.h src/find_str.cpp include/find_str.h)
+target_link_libraries(openvio_ros ${catkin_LIBRARIES} ${PTHREAD_LIB_STATIC_LIBRARY} opencv_core341 opencv_highgui libusb-1.0)
 
 include_directories(/ros/src/my_image_transport/include)  

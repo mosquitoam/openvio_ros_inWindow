@@ -1,3 +1,5 @@
+
+//#define _CRT_SECURE_NO_WARNINGS
 #include <ros/ros.h>
 #include <image_transport/image_transport.h>
 #include <opencv2/core/core.hpp>
@@ -5,7 +7,7 @@
 #include <sensor_msgs/Imu.h>
 #include <opencv2/highgui/highgui.hpp>
 #include <cv_bridge/cv_bridge.h>
-#include <unistd.h>
+#include "unistd.h"
 #include <pthread.h>
 #include "cam_imu.h"
 
@@ -21,12 +23,13 @@ void* imu_thread(void *)
 {
     while(imu_start_flag)
     {
-        if(imu_flag != 0)
+        if(imu_flag != 0) //lingyu
+        //if(true) //相机读取有问题，先测试IMU
         {
             header.seq=0;
             imu.header.stamp = imu_get_data(imu_data);//ros::Time::now();
 
-            imu.header.frame_id = "imu4";
+            imu.header.frame_id = "map";
 
             imu.orientation.x = 0.0;//imu_data[7];
             imu.orientation.y = 0.0;//imu_data[9];
@@ -55,16 +58,17 @@ void* imu_thread(void *)
             imu_pub.publish(imu);
 
             imu_flag=0;
-            //printf("IMU:%d %d\r\n",imu.header.stamp.sec,imu.header.stamp.nsec);
+            printf("IMU:%d %d\r\n",imu.header.stamp.sec,imu.header.stamp.nsec);
         }
     }
     pthread_exit(NULL);
+    return (void*)0;
 }
 
 int main(int argc, char **argv)
 {
     ros::init(argc,argv,"openvio");
-
+    std::cout << "Hello" <<endl;
     cv::Mat image(cv::Size(752,480),CV_8UC1);
     image_transport::Publisher pub;
     ros::NodeHandle node;
@@ -88,10 +92,11 @@ int main(int argc, char **argv)
     while(node.ok())
     {
         imu_start_flag = 1;
+        //std::cout << "Hello 94" <<endl;
         if(img_flag != 0)
         {
             header.seq = 0;
-            header.frame_id = "img";
+            header.frame_id = "map";
             header.stamp = img_get(image);
 
             msg = cv_bridge::CvImage(header, "mono8", image).toImageMsg();

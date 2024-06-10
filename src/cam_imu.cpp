@@ -45,7 +45,7 @@ Mat img_cam(Size(752, 480), CV_8UC1);
 ros::Time imu_time;
 ros::Time img_time;
 
-#define IMG_FRAME_SIZE_MAX 30
+//#define IMG_FRAME_SIZE_MAX 30
 
 #define IMG_FRAME_SIZE_MAX 30
 #define IMU_FRAME_SIZE_MAX 100
@@ -226,7 +226,7 @@ void *cam_catch_thread(void *)
                     //img_time = ros::Time::now();
                     img_flag = img_index;
                     img_index++;
-                    if (img_index >= IMG_FRAME_SIZE_MAX)
+                    if (img_index >= IMG_FRAME_SIZE_MAX - 2)
                     {
                         img_index = 0;
                     }
@@ -238,6 +238,7 @@ void *cam_catch_thread(void *)
 
     printf("cam_catch_thread exit\r\n");
     pthread_exit(NULL);
+    return (void*)0;
 }
 
 
@@ -403,6 +404,7 @@ void *imu_catch_thread(void *)
 
     printf("imu_catch_thread exit\r\n");
     pthread_exit(NULL);
+    return (void*)0;
 }
 void *img_show_thread(void *)
 {
